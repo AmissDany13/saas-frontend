@@ -1,13 +1,11 @@
-// src/context/AuthContext.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
 import api from '../api'
-// 🔹 Importación corregida para Vite/ESM
-import { decode as jwtDecode } from 'jwt-decode'
+import * as jwtDecode from 'jwt-decode' // 🔹 Importación compatible con Vite/ESM
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
 
-const TOKENS_KEY = 'tokens' // { access_token, id_token }
+const TOKENS_KEY = 'tokens'
 
 export function AuthProvider({ children }) {
   const [tokens, setTokens] = useState(() => {
@@ -17,8 +15,6 @@ export function AuthProvider({ children }) {
 
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
-  
-  // 🔹 Considera cualquier token válido para autenticar
   const isAuthenticated = !!tokens?.id_token || !!tokens?.access_token
 
   useEffect(() => {
@@ -29,8 +25,7 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      // Decodifica el token
-      const payload = jwtDecode(tokens.id_token || tokens.access_token)
+      const payload = jwtDecode.default(tokens.id_token || tokens.access_token)
 
       api.get('/auth/whoami')
         .then(r => {
@@ -57,7 +52,6 @@ export function AuthProvider({ children }) {
       setUser(null)
       setAuthReady(true)
     }
-
   }, [tokens])
 
   const loginWithTokens = (t) => {
