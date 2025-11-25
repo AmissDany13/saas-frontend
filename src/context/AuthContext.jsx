@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import api from '../api'
 // 🔹 Importa jwtDecode así para que funcione con Vite/ESM
-import jwtDecode from 'jwt-decode'
+import { decode as jwtDecode } from 'jwt-decode'
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
