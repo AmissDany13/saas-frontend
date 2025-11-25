@@ -1,9 +1,14 @@
+// src/api/index.js
 import axios from 'axios'
 
+// 🔹 URL base del backend desde Render
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL
+  baseURL: API_BASE_URL
 })
-// inyecta bearer si existe
+
+// 🔹 Inyecta bearer token si existe en localStorage
 api.interceptors.request.use((config) => {
   const raw = localStorage.getItem('tokens')
   if (raw) {
@@ -16,4 +21,5 @@ api.interceptors.request.use((config) => {
   }
   return config
 })
+
 export default api

@@ -10,6 +10,9 @@ export default function Callback() {
   const { loginWithTokens } = useAuth()
   const ran = useRef(false) // evita doble ejecución en React 18 StrictMode
 
+  // 🔹 Redirigir usando la URL de Render desde .env
+  const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI
+
   useEffect(() => {
     if (ran.current) return
     ran.current = true
@@ -22,10 +25,10 @@ export default function Callback() {
         verifyStateOrThrow(state)            // valida state (no lo borres aquí)
         if (!code) throw new Error('Missing code')
 
-        // ⚠️ Si tu backend usa otro path (ej. /api/auth/callback), cámbialo aquí
+        // Llamada al backend
         const { data } = await api.post('/auth/callback', {
           code,
-          redirect_uri: import.meta.env.VITE_REDIRECT_URI
+          redirect_uri: REDIRECT_URI    // usamos la variable de entorno aquí
         })
 
         // ✅ Guarda tokens en el contexto de auth
