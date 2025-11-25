@@ -1,13 +1,15 @@
 import axios from 'axios'
 
-// Asegúrate de incluir /api al final de tu URL de backend
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://saas-backend-xdn1.onrender.com/api'
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://saas-backend-xdn1.onrender.com/api'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true // 🔥 NECESARIO para que el login funcione
 })
 
 // Interceptor para inyectar token si existe
