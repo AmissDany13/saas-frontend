@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import api from '../api'
-import { decode as jwtDecode } from 'jwt-decode' // 🔹 Import corregido
+import * as jwtDecodeModule from 'jwt-decode' // 🔹 Import como módulo completo
+const jwtDecode = jwtDecodeModule.default || jwtDecodeModule.decode // 🔹 Soporte para default y named export
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
 
-const TOKENS_KEY = 'tokens' // { access_token, id_token }
+const TOKENS_KEY = 'tokens'
 
 export function AuthProvider({ children }) {
   const [tokens, setTokens] = useState(() => {
@@ -15,8 +16,6 @@ export function AuthProvider({ children }) {
 
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
-  
-  // 🔹 Considera cualquier token válido para autenticar
   const isAuthenticated = !!tokens?.id_token || !!tokens?.access_token
 
   useEffect(() => {
