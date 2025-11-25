@@ -5,14 +5,11 @@ export default function ProtectedRoute({ children }) {
   const { isAuthenticated, authReady } = useAuth()
   const location = useLocation()
 
-  // 🔹 Espera a que authReady sea true antes de decidir
-  if (!authReady) {
-    return <p style={{ padding: 16 }}>Verificando sesión…</p>
-  }
+  // 🔹 Espera a que AuthContext cargue los tokens
+  if (!authReady) return <p style={{ padding: 16 }}>Cargando sesión…</p>
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated)
     return <Navigate to="/login" state={{ from: location }} replace />
-  }
 
   return children
 }

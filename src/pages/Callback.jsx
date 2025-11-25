@@ -8,7 +8,7 @@ export default function Callback() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const { loginWithTokens } = useAuth()
-  const ran = useRef(false) // evita doble ejecución en React 18 StrictMode
+  const ran = useRef(false) // Evita doble ejecución en React 18 StrictMode
 
   useEffect(() => {
     if (ran.current) return
@@ -18,32 +18,30 @@ export default function Callback() {
       try {
         const code = params.get('code')
         const state = params.get('state')
-
-        verifyStateOrThrow(state) // valida state
+        verifyStateOrThrow(state)
         if (!code) throw new Error('Missing code')
 
-        // Llamada al backend para intercambiar code por tokens
+        // Intercambia el code por tokens en tu backend
         const { data } = await api.post('/auth/callback', {
           code,
           redirect_uri: import.meta.env.VITE_REDIRECT_URI
         })
 
-        // Guardar tokens en el contexto de auth
+        // Guardar tokens y limpiar state temporal
         loginWithTokens(data)
         localStorage.removeItem('oauth_state')
 
-        // Actualizar perfil del usuario desde backend
+        // Forzar carga del perfil (opcional, AuthContext ya lo hace)
         await api.get('/auth/whoami')
 
-        // Redirigir al dashboard explícitamente
+        // Redirige al dashboard
         navigate('/dashboard', { replace: true })
-
       } catch (e) {
         console.error('LOGIN ERROR >>>', e?.response?.status, e?.response?.data || e.message)
         navigate('/login', { replace: true })
       }
     })()
-  }, []) // eslint-disable-line
+  }, [])
 
   return <p style={{ padding: 16 }}>Procesando inicio de sesión…</p>
 }

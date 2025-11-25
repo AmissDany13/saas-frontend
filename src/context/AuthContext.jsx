@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import api from '../api'
-import * as jwtDecodeModule from 'jwt-decode' // 🔹 Import como módulo completo
-const jwtDecode = jwtDecodeModule.default || jwtDecodeModule.decode // 🔹 Soporte para default y named export
+// 🔹 Importa jwtDecode así para que funcione con Vite/ESM
+import jwtDecode from 'jwt-decode'
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
 
-const TOKENS_KEY = 'tokens'
+const TOKENS_KEY = 'tokens' // { access_token, id_token }
 
 export function AuthProvider({ children }) {
   const [tokens, setTokens] = useState(() => {
@@ -16,44 +16,34 @@ export function AuthProvider({ children }) {
 
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
+  
   const isAuthenticated = !!tokens?.id_token || !!tokens?.access_token
 
   useEffect(() => {
+    // Si no hay tokens, ya estamos listos
     if (!tokens) {
       setUser(null)
       setAuthReady(true)
       return
     }
 
-    try {
-      const payload = jwtDecode(tokens.id_token || tokens.access_token)
+    const loadUser = async () => {
+      try {
+        // Decodifica token (opcional, solo si necesitas payload)
+        jwtDecode(tokens.id_token || tokens.access_token)
 
-      api.get('/auth/whoami')
-        .then(r => {
-          const { sub, email, name } = r.data || {}
-          setUser({ sub, email, name })
-          setAuthReady(true)
-        })
-        .catch(async () => {
-          try {
-            const r = await api.get('/me')
-            setUser(r.data?.profile || {
-              sub: r.data?.sub,
-              email: r.data?.email,
-              name: r.data?.name
-            })
-          } catch {
-            setUser(null)
-          } finally {
-            setAuthReady(true)
-          }
-        })
-
-    } catch {
-      setUser(null)
-      setAuthReady(true)
+        // Consulta el backend para obtener perfil completo
+        const { data } = await api.get('/auth/whoami')
+        const { sub, email, name } = data || {}
+        setUser({ sub, email, name })
+      } catch {
+        setUser(null)
+      } finally {
+        setAuthReady(true)
+      }
     }
 
+    loadUser()
   }, [tokens])
 
   const loginWithTokens = (t) => {
