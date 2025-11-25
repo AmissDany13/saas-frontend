@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-// 🔹 Asegúrate de incluir /api al final de tu URL de backend
+// Asegúrate de incluir /api al final de tu URL de backend
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://saas-backend-xdn1.onrender.com/api'
 
 const api = axios.create({
@@ -10,7 +10,7 @@ const api = axios.create({
   }
 })
 
-// 🔹 Interceptor para inyectar token si existe
+// Interceptor para inyectar token si existe
 api.interceptors.request.use((config) => {
   const raw = localStorage.getItem('tokens')
   if (raw) {
