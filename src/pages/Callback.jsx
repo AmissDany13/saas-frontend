@@ -1,4 +1,3 @@
-// src/pages/Callback.jsx
 import { useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { verifyStateOrThrow } from '../utils/auth'

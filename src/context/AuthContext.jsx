@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import api from '../api'
-import { jwtDecode } from 'jwt-decode'
+import jwtDecode from 'jwt-decode'
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
@@ -8,20 +8,21 @@ export const useAuth = () => useContext(AuthCtx)
 const TOKENS_KEY = 'tokens' // { access_token, id_token }
 
 export function AuthProvider({ children }) {
-
   const [tokens, setTokens] = useState(() => {
     const raw = localStorage.getItem(TOKENS_KEY)
     return raw ? JSON.parse(raw) : null
   })
 
   const [user, setUser] = useState(null)
-  const [authReady, setAuthReady] = useState(false)   // 🔥 AÑADIDO
-  const isAuthenticated = !!tokens?.access_token
+  const [authReady, setAuthReady] = useState(false)
+  
+  // 🔹 Considera cualquier token válido para autenticar
+  const isAuthenticated = !!tokens?.id_token || !!tokens?.access_token
 
   useEffect(() => {
-    if (!tokens?.access_token) {
+    if (!tokens) {
       setUser(null)
-      setAuthReady(true)      // 🔥 listo aunque no haya login
+      setAuthReady(true)
       return
     }
 
@@ -32,7 +33,7 @@ export function AuthProvider({ children }) {
         .then(r => {
           const { sub, email, name } = r.data || {}
           setUser({ sub, email, name })
-          setAuthReady(true)    // 🔥 listo
+          setAuthReady(true)
         })
         .catch(async () => {
           try {
@@ -45,7 +46,7 @@ export function AuthProvider({ children }) {
           } catch {
             setUser(null)
           } finally {
-            setAuthReady(true)   // 🔥 listo pase lo que pase
+            setAuthReady(true)
           }
         })
 
@@ -73,7 +74,7 @@ export function AuthProvider({ children }) {
         tokens,
         user,
         isAuthenticated,
-        authReady,            // 🔥 AHORA SE EXPONE AL FRONT
+        authReady,
         loginWithTokens,
         logout
       }}
