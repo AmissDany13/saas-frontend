@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import api from '../api'
-import * as jwtDecode from 'jwt-decode' // 🔹 Importación compatible con Vite/ESM
+import { jwtDecode } from 'jwt-decode' // ✅ Importación correcta
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
@@ -25,7 +25,8 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const payload = jwtDecode.default(tokens.id_token || tokens.access_token)
+      // 🔥 jwtDecode correcto
+      const payload = jwtDecode(tokens.id_token || tokens.access_token)
 
       api.get('/auth/whoami')
         .then(r => {
