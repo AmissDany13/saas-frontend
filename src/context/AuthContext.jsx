@@ -1,6 +1,7 @@
+// src/context/AuthContext.jsx
 import { createContext, useContext, useEffect, useState } from 'react'
 import api from '../api'
-// 🔹 Importa jwtDecode así para que funcione con Vite/ESM
+// 🔹 Importación corregida para Vite/ESM
 import { decode as jwtDecode } from 'jwt-decode'
 
 const AuthCtx = createContext(null)
@@ -17,33 +18,46 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   
+  // 🔹 Considera cualquier token válido para autenticar
   const isAuthenticated = !!tokens?.id_token || !!tokens?.access_token
 
   useEffect(() => {
-    // Si no hay tokens, ya estamos listos
     if (!tokens) {
       setUser(null)
       setAuthReady(true)
       return
     }
 
-    const loadUser = async () => {
-      try {
-        // Decodifica token (opcional, solo si necesitas payload)
-        jwtDecode(tokens.id_token || tokens.access_token)
+    try {
+      // Decodifica el token
+      const payload = jwtDecode(tokens.id_token || tokens.access_token)
 
-        // Consulta el backend para obtener perfil completo
-        const { data } = await api.get('/auth/whoami')
-        const { sub, email, name } = data || {}
-        setUser({ sub, email, name })
-      } catch {
-        setUser(null)
-      } finally {
-        setAuthReady(true)
-      }
+      api.get('/auth/whoami')
+        .then(r => {
+          const { sub, email, name } = r.data || {}
+          setUser({ sub, email, name })
+          setAuthReady(true)
+        })
+        .catch(async () => {
+          try {
+            const r = await api.get('/me')
+            setUser(r.data?.profile || {
+              sub: r.data?.sub,
+              email: r.data?.email,
+              name: r.data?.name
+            })
+          } catch {
+            setUser(null)
+          } finally {
+            setAuthReady(true)
+          }
+        })
+
+    } catch {
+      setUser(null)
+      setAuthReady(true)
     }
 
-    loadUser()
   }, [tokens])
 
   const loginWithTokens = (t) => {
