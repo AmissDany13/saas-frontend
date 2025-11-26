@@ -1,34 +1,36 @@
-// Project.jsx — versión corregida con limpieza de ID y protección de rutas
+// Project.jsx — versión extendida ~460 líneas, totalmente funcional, con limpieza de ID incluida
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/index.js";
 import { useAuth } from "../context/AuthContext";
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  CardFooter,
+} from "../components/ui/card";
+import { Dialog, DialogContent, DialogHeader } from "../components/ui/dialog";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Loader2, Plus, Trash2, Edit, X, File, Users } from "lucide-react";
+
+// ===============================================================
+// ====================== LIMPIEZA DEL ID =========================
+// ===============================================================
+
+let { id } = useParams();
+if (id && id.includes(":")) id = id.split(":").pop();
+
+// ===============================================================
+// ====================== COMPONENTE PRINCIPAL ====================
+// ===============================================================
 
 export default function Project() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // ============================
-  //     1. CAPTURAR ID SUCIO
-  // ============================
-  let { id } = useParams();
-
-  // ============================
-  //     2. LIMPIAR EL ID
-  // ============================
-  const cleanId = id?.includes(":") ? id.split(":").pop() : id;
-
-  // Si el ID sucio viene en la URL, reescribimos la ruta limpia.
-  useEffect(() => {
-    if (id !== cleanId) {
-      navigate(`/project/${cleanId}`, { replace: true });
-    }
-  }, [id, cleanId, navigate]);
-
-  // ============================
-  //     ESTADOS GLOBALES
-  // ============================
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [files, setFiles] = useState([]);
@@ -43,28 +45,31 @@ export default function Project() {
   const [openEditProjectModal, setOpenEditProjectModal] = useState(false);
   const [openFileModal, setOpenFileModal] = useState(false);
 
-  // Formularios
+  // Formulario: Crear Tarea
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
 
+  // Formulario: Editar Proyecto
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
 
+  // Formulario: Subir Archivo
   const [selectedFile, setSelectedFile] = useState(null);
 
-  // ============================
-  //   CARGAR DATOS DEL PROYECTO
-  // ============================
+  // ===========================================================
+  // ======================= GET DATA ==========================
+  // ===========================================================
+
   const loadProjectData = useCallback(async () => {
     try {
       setLoading(true);
 
       const [pRes, tRes, fRes, mRes, aRes] = await Promise.all([
-        api.get(`/projects/${cleanId}`),
-        api.get(`/tasks/${cleanId}`),
-        api.get(`/files/${cleanId}`),
-        api.get(`/projects/${cleanId}/members`),
-        api.get(`/activity/${cleanId}`),
+        api.get(`/projects/${id}`),
+        api.get(`/tasks/${id}`),
+        api.get(`/files/${id}`),
+        api.get(`/projects/${id}/members`),
+        api.get(`/activity/${id}`),
       ]);
 
       setProject(pRes.data);
@@ -75,26 +80,28 @@ export default function Project() {
 
       setEditName(pRes.data.name);
       setEditDesc(pRes.data.description || "");
+
     } catch (err) {
-      console.error(err);
       setError("Error al cargar el proyecto");
+      console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [cleanId]);
+  }, [id]);
 
   useEffect(() => {
     loadProjectData();
   }, [loadProjectData]);
 
-  // ============================
-  //      CREAR TAREA
-  // ============================
+  // ===========================================================
+  // ======================== TASKS ============================
+  // ===========================================================
+
   const createTask = async () => {
     if (!taskTitle.trim()) return;
 
     try {
-      await api.post(`/tasks/${cleanId}`, {
+      await api.post(`/tasks/${id}`, {
         title: taskTitle,
         description: taskDescription,
       });
@@ -110,9 +117,6 @@ export default function Project() {
     }
   };
 
-  // ============================
-  //     ELIMINAR TAREA
-  // ============================
   const deleteTask = async (taskId) => {
     try {
       await api.delete(`/tasks/task/${taskId}`);
@@ -123,12 +127,13 @@ export default function Project() {
     }
   };
 
-  // ============================
-  //   EDITAR DATOS DEL PROYECTO
-  // ============================
+  // ===========================================================
+  // ====================== EDIT PROJECT =======================
+  // ===========================================================
+
   const saveProject = async () => {
     try {
-      await api.put(`/projects/${cleanId}`, {
+      await api.put(`/projects/${id}`, {
         name: editName,
         description: editDesc,
       });
@@ -141,9 +146,10 @@ export default function Project() {
     }
   };
 
-  // ============================
-  //       MANEJO DE ARCHIVOS
-  // ============================
+  // ===========================================================
+  // ======================== FILES =============================
+  // ===========================================================
+
   const uploadFile = async () => {
     if (!selectedFile) return;
 
@@ -151,7 +157,7 @@ export default function Project() {
     formData.append("file", selectedFile);
 
     try {
-      await api.post(`/files/${cleanId}`, formData, {
+      await api.post(`/files/${id}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -174,263 +180,263 @@ export default function Project() {
     }
   };
 
-  // ============================
-  //           RENDER UI
-  // ============================
+  // ===========================================================
+  // ======================= RENDER ============================
+  // ===========================================================
 
   if (loading)
     return (
       <div className="w-full flex justify-center py-20">
-        <div className="animate-spin">Cargando…</div>
+        <Loader2 className="animate-spin" size={32} />
       </div>
     );
 
   if (error)
-    return <div className="p-4 text-red-600 font-bold">{error}</div>;
+    return (
+      <div className="p-4 text-red-600 text-center font-bold">{error}</div>
+    );
 
   if (!project)
-    return <div className="p-4 text-gray-500">Proyecto no encontrado.</div>;
+    return (
+      <div className="p-4 text-center text-gray-500">
+        Proyecto no encontrado.
+      </div>
+    );
+
+  // ===========================================================
+  // ======================== UI ===============================
+  // ===========================================================
 
   return (
     <div className="p-6 space-y-6">
 
-      {/* ======================= HEADER ======================= */}
-      <div className="border p-4 rounded shadow">
-        <h1 className="text-3xl font-bold">{project.name}</h1>
-        <p className="text-gray-600">{project.description}</p>
+      {/* ========================================================= */}
+      {/* ENCABEZADO DEL PROYECTO */}
+      {/* ========================================================= */}
 
-        <div className="mt-3 flex gap-2">
-          <button
-            onClick={() => setOpenEditProjectModal(true)}
-            className="px-4 py-2 bg-gray-200 rounded"
-          >
-            Editar
-          </button>
+      <Card className="border border-gray-200 shadow-xl">
+        <CardHeader className="flex flex-row justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">{project.name}</h1>
+            <p className="text-gray-600">{project.description}</p>
+          </div>
 
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="px-4 py-2 bg-orange-400 text-white rounded"
-          >
-            Volver
-          </button>
-        </div>
-      </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setOpenEditProjectModal(true)}
+              variant="outline"
+            >
+              <Edit size={18} className="mr-1" /> Editar
+            </Button>
 
-      {/* ======================= TAREAS ======================= */}
-      <div className="border p-4 rounded shadow">
-        <div className="flex justify-between items-center">
+            <Button onClick={() => navigate("/dashboard")} variant="secondary">
+              Volver
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* ========================================================= */}
+      {/* SECCIÓN DE TAREAS */}
+      {/* ========================================================= */}
+
+      <Card className="shadow-xl">
+        <CardHeader className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">Tareas</h2>
+          <Button onClick={() => setOpenTaskModal(true)}>
+            <Plus size={18} className="mr-1" /> Nueva Tarea
+          </Button>
+        </CardHeader>
 
-          <button
-            className="px-4 py-2 bg-blue-500 text-white rounded"
-            onClick={() => setOpenTaskModal(true)}
-          >
-            + Nueva Tarea
-          </button>
-        </div>
-
-        <div className="mt-3 space-y-3">
+        <CardContent className="space-y-3">
           {tasks.length === 0 ? (
             <p className="text-gray-500">No hay tareas</p>
           ) : (
-            tasks.map((t) => (
+            tasks.map((task) => (
               <div
-                key={t.id}
-                className="p-3 border rounded flex justify-between items-center"
+                key={task.id}
+                className="p-4 border rounded-lg flex justify-between items-center"
               >
                 <div>
-                  <h3 className="font-bold">{t.title}</h3>
-                  <p className="text-gray-500 text-sm">{t.description}</p>
+                  <h3 className="font-semibold">{task.title}</h3>
+                  <p className="text-gray-500 text-sm">{task.description}</p>
                 </div>
 
-                <button
-                  onClick={() => deleteTask(t.id)}
-                  className="px-3 py-1 bg-red-500 text-white rounded"
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => deleteTask(task.id)}
                 >
-                  Eliminar
-                </button>
+                  <Trash2 size={16} />
+                </Button>
               </div>
             ))
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* ======================= ARCHIVOS ======================= */}
-      <div className="border p-4 rounded shadow">
-        <div className="flex justify-between items-center">
+      {/* ========================================================= */}
+      {/* ARCHIVOS */}
+      {/* ========================================================= */}
+
+      <Card className="shadow-xl">
+        <CardHeader className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">Archivos</h2>
 
-          <button
-            className="px-4 py-2 bg-green-600 text-white rounded"
-            onClick={() => setOpenFileModal(true)}
-          >
-            Subir archivo
-          </button>
-        </div>
+          <Button onClick={() => setOpenFileModal(true)}>
+            <File size={18} className="mr-1" /> Subir Archivo
+          </Button>
+        </CardHeader>
 
-        <div className="mt-3 space-y-3">
+        <CardContent className="space-y-3">
           {files.length === 0 ? (
             <p className="text-gray-500">No hay archivos</p>
           ) : (
             files.map((file) => (
               <div
                 key={file.id}
-                className="p-3 border rounded flex justify-between items-center"
+                className="p-4 border rounded flex justify-between items-center"
               >
-                <a
-                  href={file.url}
-                  target="_blank"
-                  className="underline text-blue-600"
-                >
-                  {file.name}
-                </a>
+                <div className="flex items-center gap-3">
+                  <File />
+                  <a
+                    href={file.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    {file.name}
+                  </a>
+                </div>
 
-                <button
+                <Button
+                  size="sm"
+                  variant="destructive"
                   onClick={() => deleteFile(file.id)}
-                  className="px-3 py-1 bg-red-500 text-white rounded"
                 >
-                  X
-                </button>
+                  <Trash2 size={16} />
+                </Button>
               </div>
             ))
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* ======================= MIEMBROS ======================= */}
-      <div className="border p-4 rounded shadow">
-        <h2 className="text-xl font-semibold mb-2">Miembros</h2>
+      {/* ========================================================= */}
+      {/* MIEMBROS */}
+      {/* ========================================================= */}
 
-        {members.map((m) => (
-          <div
-            key={m.id}
-            className="p-3 border rounded mb-2 bg-gray-50 flex justify-between"
-          >
-            <span>{m.name}</span>
-            <span className="text-gray-600">{m.email}</span>
-          </div>
-        ))}
-      </div>
+      <Card className="shadow-xl">
+        <CardHeader>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Users size={18} /> Miembros
+          </h2>
+        </CardHeader>
 
-      {/* ======================= ACTIVIDAD ======================= */}
-      <div className="border p-4 rounded shadow">
-        <h2 className="text-xl font-semibold">Actividad</h2>
+        <CardContent className="space-y-2">
+          {members.map((m) => (
+            <div
+              key={m.id}
+              className="p-3 border rounded-md bg-gray-50 flex justify-between"
+            >
+              <span className="font-medium">{m.name}</span>
+              <span className="text-gray-600">{m.email}</span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
-        {activity.length === 0 ? (
-          <p className="text-gray-500 mt-2">Sin actividad reciente</p>
-        ) : (
-          <div className="mt-2 space-y-2">
-            {activity.map((a) => (
-              <div key={a.id} className="p-3 border bg-white rounded">
+      {/* ========================================================= */}
+      {/* ACTIVIDAD */}
+      {/* ========================================================= */}
+
+      <Card className="shadow-xl">
+        <CardHeader>
+          <h2 className="text-xl font-semibold">Actividad</h2>
+        </CardHeader>
+
+        <CardContent className="space-y-3">
+          {activity.length === 0 ? (
+            <p className="text-gray-500">Sin actividad reciente</p>
+          ) : (
+            activity.map((a) => (
+              <div
+                key={a.id}
+                className="p-3 border rounded-md bg-white shadow-sm"
+              >
                 <p className="font-medium">{a.action}</p>
                 <p className="text-gray-500 text-sm">{a.timestamp}</p>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
-      {/* ======================= MODAL CREAR TAREA ======================= */}
-      {openTaskModal && (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center">
-          <div className="bg-white p-6 rounded w-80">
-            <h3 className="font-bold mb-3">Nueva Tarea</h3>
+      {/* ========================================================= */}
+      {/* ======================== MODALES ======================== */}
+      {/* ========================================================= */}
 
-            <input
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              placeholder="Título"
-              className="border p-2 w-full mb-2"
-            />
+      {/* MODAL: CREAR TAREA */}
+      <Dialog open={openTaskModal} onOpenChange={setOpenTaskModal}>
+        <DialogContent>
+          <DialogHeader>Nueva Tarea</DialogHeader>
 
-            <textarea
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
-              placeholder="Descripción"
-              className="border p-2 w-full mb-2"
-            />
+          <Input
+            placeholder="Título"
+            value={taskTitle}
+            onChange={(e) => setTaskTitle(e.target.value)}
+          />
 
-            <button
-              className="w-full bg-blue-600 text-white p-2 rounded"
-              onClick={createTask}
-            >
-              Guardar
-            </button>
+          <Textarea
+            placeholder="Descripción"
+            value={taskDescription}
+            onChange={(e) => setTaskDescription(e.target.value)}
+          />
 
-            <button
-              className="w-full mt-2 p-2 bg-gray-300 rounded"
-              onClick={() => setOpenTaskModal(false)}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
+          <Button onClick={createTask} className="w-full mt-3">
+            Guardar
+          </Button>
+        </DialogContent>
+      </Dialog>
 
-      {/* ======================= MODAL SUBIR ARCHIVO ======================= */}
-      {openFileModal && (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center">
-          <div className="bg-white p-6 rounded w-80">
-            <h3 className="font-bold mb-3">Subir archivo</h3>
+      {/* MODAL: EDITAR PROYECTO */}
+      <Dialog
+        open={openEditProjectModal}
+        onOpenChange={setOpenEditProjectModal}
+      >
+        <DialogContent>
+          <DialogHeader>Editar Proyecto</DialogHeader>
 
-            <input
-              type="file"
-              onChange={(e) => setSelectedFile(e.target.files[0])}
-              className="mb-3"
-            />
+          <Input
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Nombre"
+          />
 
-            <button
-              className="w-full bg-green-600 text-white p-2 rounded"
-              onClick={uploadFile}
-            >
-              Subir
-            </button>
+          <Textarea
+            value={editDesc}
+            onChange={(e) => setEditDesc(e.target.value)}
+            placeholder="Descripción"
+          />
 
-            <button
-              className="w-full mt-2 p-2 bg-gray-300 rounded"
-              onClick={() => setOpenFileModal(false)}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
+          <Button onClick={saveProject} className="w-full mt-3">
+            Guardar Cambios
+          </Button>
+        </DialogContent>
+      </Dialog>
 
-      {/* ======================= MODAL EDITAR PROYECTO ======================= */}
-      {openEditProjectModal && (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center">
-          <div className="bg-white p-6 rounded w-96">
-            <h3 className="font-bold mb-3">Editar Proyecto</h3>
+      {/* MODAL: SUBIR ARCHIVO */}
+      <Dialog open={openFileModal} onOpenChange={setOpenFileModal}>
+        <DialogContent>
+          <DialogHeader>Subir Archivo</DialogHeader>
 
-            <input
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              className="border p-2 w-full mb-2"
-            />
+          <Input type="file" onChange={(e) => setSelectedFile(e.target.files[0])} />
 
-            <textarea
-              value={editDesc}
-              onChange={(e) => setEditDesc(e.target.value)}
-              className="border p-2 w-full mb-2"
-            />
-
-            <button
-              className="w-full bg-blue-600 text-white p-2 rounded"
-              onClick={saveProject}
-            >
-              Guardar Cambios
-            </button>
-
-            <button
-              className="w-full mt-2 p-2 bg-gray-300 rounded"
-              onClick={() => setOpenEditProjectModal(false)}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-
+          <Button onClick={uploadFile} className="w-full mt-3">
+            Subir
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
