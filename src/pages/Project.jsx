@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-// Corregimos la importación para ser explícitos con la extensión
 import api from '../api/index.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -38,9 +37,10 @@ function fmtDate(d) {
 
 export default function Project() {
   const { id } = useParams();
-  // --- CORRECCIÓN: Creamos un ID limpio para las peticiones de Tareas ---
-  const cleanId = id ? id.replace('project:', '') : '';
   
+  // --- 1. ID LIMPIO: Quitamos el prefijo 'project:' para las peticiones de tareas ---
+  const cleanId = id ? id.replace('project:', '') : '';
+
   const { user, authReady } = useAuth();
   
   const [project, setProject] = useState(null);
@@ -68,7 +68,7 @@ export default function Project() {
   const [showActivity, setShowActivity] = useState(false);
 
   const loadProject = useCallback(async () => {
-    // Usamos el ID original para el proyecto
+    // Usamos ID original para documentos de CouchDB
     const r = await api.get(`/proyectos/${id}`);
     setProject(r.data);
     setEditing({
@@ -79,24 +79,24 @@ export default function Project() {
   }, [id]);
   
   const loadMembers = useCallback(async () => {
-    // Usamos el ID original para miembros (asumiendo que funciona igual que proyecto)
     const r = await api.get(`/proyectos/${id}/members`);
     setMembers(Array.isArray(r.data) ? r.data : []);
   }, [id]);
 
   const loadTasks = useCallback(async () => {
     try {
-      // CORREGIDO: Usamos cleanId
+      // Usamos cleanId para tareas
       const res = await api.get(`/proyectos/${cleanId}/tareas`);
       setTasks(res.data || []);
     } catch (err) {
-      console.error("Error cargando tareas", err);
+      console.error("Error cargando tareas (puede ser permiso 403)", err);
+      // No lanzamos error global para no romper la UI
     }
   }, [cleanId]);
 
   const loadActivity = useCallback(async () => {
     try {
-      // CORREGIDO: Usamos cleanId (por precaución, ya que suele estar ligado a tareas)
+      // Usamos cleanId para actividad
       const res = await api.get(`/proyectos/${cleanId}/activity`);
       setActivity(res.data || []);
     } catch (err) {
@@ -104,30 +104,50 @@ export default function Project() {
     }
   }, [cleanId]);
 
+  // --- 2. FUNCIÓN DE CARGA BLINDADA ---
   const loadAll = async () => {
     setLoading(true);
     setErrorMsg("");
     try {
+      // A. CARGA CRÍTICA: Primero el proyecto y miembros.
+      // Si esto falla, el proyecto no existe, así que aquí sí dejamos que salte al catch global.
       const projectReq = api.get(`/proyectos/${id}`);
       const membersReq = api.get(`/proyectos/${id}/members`);
-      // CORREGIDO: cleanId para tareas
-      const tasksReq = api.get(`/proyectos/${cleanId}/tareas`);
-      let activityReq = null;
-      // CORREGIDO: cleanId para actividad
-      if (myRole !== "viewer") activityReq = api.get(`/proyectos/${cleanId}/activity`);
 
-      const [projectRes, membersRes, tasksRes, activityRes] = await Promise.all([projectReq, membersReq, tasksReq, activityReq]);
+      const [projectRes, membersRes] = await Promise.all([projectReq, membersReq]);
 
       setProject(projectRes.data);
       setMembers(membersRes.data || []);
-      setTasks(tasksRes.data || []);
-      if (activityRes) setActivity(activityRes.data || []);
 
       const me = membersRes.data.find(m => m.user_id === user?.sub);
-      setMyRole(me?.rol || "viewer");
+      const userRole = me?.rol || "viewer";
+      setMyRole(userRole);
+
+      // B. CARGA SECUNDARIA: Tareas y Actividad.
+      // Lo ponemos en un try/catch interno. Si falla (ej. error 403), la página SIGUE funcionando.
+      try {
+          const tasksReq = api.get(`/proyectos/${cleanId}/tareas`);
+          let activityReq = null;
+          if (userRole !== "viewer") {
+             activityReq = api.get(`/proyectos/${cleanId}/activity`);
+          }
+
+          const [tasksRes, activityRes] = await Promise.all([
+             tasksReq, 
+             activityReq ? activityReq : Promise.resolve({ data: [] })
+          ]);
+
+          setTasks(tasksRes.data || []);
+          if (activityRes) setActivity(activityRes.data || []);
+
+      } catch (secondaryError) {
+          console.warn("No se pudieron cargar tareas o actividad (posible error 403):", secondaryError);
+          // Dejamos las listas vacías pero NO bloqueamos la página
+      }
+
       setLoading(false);
     } catch (err) {
-      console.error(err);
+      console.error("Error crítico cargando proyecto:", err);
       setErrorMsg("No se pudieron cargar los datos del proyecto.");
       setLoading(false);
     }
@@ -236,7 +256,7 @@ export default function Project() {
     const form = new FormData();
     form.append("csv", file);
     try {
-      // CORREGIDO: cleanId
+      // Usamos cleanId
       const r = await api.post(`/proyectos/${cleanId}/tareas/import-csv`, form, { headers: { "Content-Type": "multipart/form-data" } });
       alert(`Importadas: ${r.data.created} / ${r.data.total}\nErrores: ${r.data.errors.length}`);
       await loadTasks(); await loadActivity();
@@ -250,7 +270,7 @@ export default function Project() {
     if (!titulo) return;
     try {
       setCreatingTask(true);
-      // CORREGIDO: cleanId (Esto soluciona el error del video)
+      // Usamos cleanId
       await api.post(`/proyectos/${cleanId}/tareas`, {
         titulo,
         descripcion: taskForm.descripcion || '',
@@ -265,7 +285,7 @@ export default function Project() {
   };
 
   async function loadFiles(taskId) {
-    // CORREGIDO: cleanId
+    // Usamos cleanId
     const r = await api.get(`/proyectos/${cleanId}/tareas/${taskId}/files`);
     setTaskFiles((prev) => ({ ...prev, [taskId]: r.data || [] }));
   }
@@ -274,7 +294,7 @@ export default function Project() {
     for (const f of files) {
       const form = new FormData();
       form.append("file", f);
-      // CORREGIDO: cleanId
+      // Usamos cleanId
       await api.post(`/proyectos/${cleanId}/tareas/${taskId}/files`, form, { headers: { "Content-Type": "multipart/form-data" } });
     }
     await loadFiles(taskId);
@@ -289,7 +309,7 @@ export default function Project() {
   }
 
   async function deleteFile(taskId, fileId) {
-    // CORREGIDO: cleanId
+    // Usamos cleanId
     await api.delete(`/proyectos/${cleanId}/tareas/${taskId}/files/${fileId}`);
     await loadFiles(taskId);
   }
@@ -310,7 +330,7 @@ export default function Project() {
     e.preventDefault();
     if (!editingTask) return;
     try {
-      // CORREGIDO: cleanId
+      // Usamos cleanId
       await api.patch(`/proyectos/${cleanId}/tareas/${editingTask}`, {
         titulo: editForm.titulo,
         descripcion: editForm.descripcion,
@@ -325,7 +345,7 @@ export default function Project() {
 
   async function onDeleteTask(taskId) {
     if (!window.confirm("¿Eliminar tarea?")) return;
-    // CORREGIDO: cleanId
+    // Usamos cleanId
     try { await api.delete(`/proyectos/${cleanId}/tareas/${taskId}`); await loadTasks(); await loadActivity(); } catch (err) { setErrorMsg("Error al eliminar tarea."); }
   }
 
