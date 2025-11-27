@@ -38,6 +38,10 @@ function fmtDate(d) {
 
 export default function Project() {
   const { id } = useParams();
+  // --- FIX CRÍTICO: Limpiamos el ID del proyecto para evitar "project:project:..." ---
+  // Usaremos 'cleanProjectId' en todas las llamadas a la API
+  const cleanProjectId = useMemo(() => id?.replace(/^project:/, ''), [id]);
+  
   const { user, authReady } = useAuth();
   
   const [project, setProject] = useState(null);
@@ -65,54 +69,65 @@ export default function Project() {
   const [showActivity, setShowActivity] = useState(false);
 
   const loadProject = useCallback(async () => {
-    const r = await api.get(`/proyectos/${id}`);
+    if (!cleanProjectId) return;
+    const r = await api.get(`/proyectos/${cleanProjectId}`);
     setProject(r.data);
     setEditing({
       estado: r.data?.estado || 'activo',
       fecha_inicio: r.data?.fecha_inicio || '',
       fecha_fin: r.data?.fecha_fin || '',
     });
-  }, [id]);
+  }, [cleanProjectId]);
   
   const loadMembers = useCallback(async () => {
-    const r = await api.get(`/proyectos/${id}/members`);
+    if (!cleanProjectId) return;
+    const r = await api.get(`/proyectos/${cleanProjectId}/members`);
     setMembers(Array.isArray(r.data) ? r.data : []);
-  }, [id]);
+  }, [cleanProjectId]);
 
   const loadTasks = useCallback(async () => {
+    if (!cleanProjectId) return;
     try {
-      const res = await api.get(`/proyectos/${id}/tareas`);
+      const res = await api.get(`/proyectos/${cleanProjectId}/tareas`);
       setTasks(res.data || []);
     } catch (err) {
       console.error("Error cargando tareas", err);
     }
-  }, [id]);
+  }, [cleanProjectId]);
 
   const loadActivity = useCallback(async () => {
+    if (!cleanProjectId) return;
     try {
-      const res = await api.get(`/proyectos/${id}/activity`);
+      const res = await api.get(`/proyectos/${cleanProjectId}/activity`);
       setActivity(res.data || []);
     } catch (err) {
       console.error("Error cargando actividad", err);
     }
-  }, [id]);
+  }, [cleanProjectId]);
 
   const loadAll = async () => {
+    if (!cleanProjectId) return;
     setLoading(true);
     setErrorMsg("");
     try {
-      const projectReq = api.get(`/proyectos/${id}`);
-      const membersReq = api.get(`/proyectos/${id}/members`);
-      const tasksReq = api.get(`/proyectos/${id}/tareas`);
+      const projectReq = api.get(`/proyectos/${cleanProjectId}`);
+      const membersReq = api.get(`/proyectos/${cleanProjectId}/members`);
+      const tasksReq = api.get(`/proyectos/${cleanProjectId}/tareas`);
       let activityReq = null;
-      if (myRole !== "viewer") activityReq = api.get(`/proyectos/${id}/activity`);
+      // Nota: Si myRole aún no carga, la primera vez puede fallar activity, pero se recarga luego.
+      activityReq = api.get(`/proyectos/${cleanProjectId}/activity`);
 
-      const [projectRes, membersRes, tasksRes, activityRes] = await Promise.all([projectReq, membersReq, tasksReq, activityReq]);
+      const [projectRes, membersRes, tasksRes, activityRes] = await Promise.all([
+        projectReq, 
+        membersReq, 
+        tasksReq, 
+        activityReq.catch(() => ({ data: [] })) // Fallback si falla activity por permisos iniciales
+      ]);
 
       setProject(projectRes.data);
       setMembers(membersRes.data || []);
       setTasks(tasksRes.data || []);
-      if (activityRes) setActivity(activityRes.data || []);
+      setActivity(activityRes.data || []);
 
       const me = membersRes.data.find(m => m.user_id === user?.sub);
       setMyRole(me?.rol || "viewer");
@@ -128,13 +143,13 @@ export default function Project() {
     if (!authReady) return;
     if (!user) return;
     loadAll();
-  }, [authReady, user, id]);
+  }, [authReady, user, cleanProjectId]); // Dependencia actualizada a cleanProjectId
 
   useEffect(() => {
     if (!showActivity) return;
     const interval = setInterval(() => { loadActivity() }, 5000);
     return () => clearInterval(interval);
-  }, [showActivity, id, loadActivity]);
+  }, [showActivity, cleanProjectId, loadActivity]);
 
   const selectableMembers = useMemo(() => members.filter((m) => m.status === 'active' && !!m.user_id), [members]);
   const memberLabel = (m) => m.name || m.email || m.invited_email || m.user_id;
@@ -188,7 +203,7 @@ export default function Project() {
     if (savingProject) return;
     try {
       setSavingProject(true);
-      await api.patch(`/proyectos/${id}`, {
+      await api.patch(`/proyectos/${cleanProjectId}`, {
         estado: editing.estado,
         fecha_inicio: editing.fecha_inicio || null,
         fecha_fin: editing.fecha_fin || null,
@@ -204,7 +219,7 @@ export default function Project() {
     if (!email || !isValidEmail(email)) { setErrorMsg('Escribe un correo válido.'); return; }
     try {
       setInviting(true);
-      await api.post(`/proyectos/${id}/members`, { email, rol: inviteRole });
+      await api.post(`/proyectos/${cleanProjectId}/members`, { email, rol: inviteRole });
       setInviteEmail('');
       await loadMembers();
     } catch (e) { setErrorMsg('No se pudo agregar el miembro.'); } finally { setInviting(false); }
@@ -213,12 +228,12 @@ export default function Project() {
   const onRemoveMember = async (userId) => {
     if (!userId) return;
     if (!window.confirm('¿Quitar miembro?')) return;
-    try { await api.delete(`/proyectos/${id}/members/${userId}`); } catch (e) { setErrorMsg('Error al quitar miembro.'); } finally { await loadMembers(); }
+    try { await api.delete(`/proyectos/${cleanProjectId}/members/${userId}`); } catch (e) { setErrorMsg('Error al quitar miembro.'); } finally { await loadMembers(); }
   };
 
   async function onRoleChange(member, newRole) {
     const idUser = member.user_id || member.invited_email;
-    try { await api.patch(`/proyectos/${project._id}/members/${idUser}/role`, { rol: newRole }); await loadMembers(); } catch (e) { setErrorMsg("Error al actualizar rol."); }
+    try { await api.patch(`/proyectos/${cleanProjectId}/members/${idUser}/role`, { rol: newRole }); await loadMembers(); } catch (e) { setErrorMsg("Error al actualizar rol."); }
   }
 
   async function handleCsvUpload(e) {
@@ -227,7 +242,7 @@ export default function Project() {
     const form = new FormData();
     form.append("csv", file);
     try {
-      const r = await api.post(`/proyectos/${id}/tareas/import-csv`, form, { headers: { "Content-Type": "multipart/form-data" } });
+      const r = await api.post(`/proyectos/${cleanProjectId}/tareas/import-csv`, form, { headers: { "Content-Type": "multipart/form-data" } });
       alert(`Importadas: ${r.data.created} / ${r.data.total}\nErrores: ${r.data.errors.length}`);
       await loadTasks(); await loadActivity();
     } catch (err) { alert("Error al importar CSV"); }
@@ -240,7 +255,8 @@ export default function Project() {
     if (!titulo) return;
     try {
       setCreatingTask(true);
-      await api.post(`/proyectos/${id}/tareas`, {
+      // USAMOS cleanProjectId AQUÍ
+      await api.post(`/proyectos/${cleanProjectId}/tareas`, {
         titulo,
         descripcion: taskForm.descripcion || '',
         estado: taskForm.estado,
@@ -254,7 +270,7 @@ export default function Project() {
   };
 
   async function loadFiles(taskId) {
-    const r = await api.get(`/proyectos/${id}/tareas/${taskId}/files`);
+    const r = await api.get(`/proyectos/${cleanProjectId}/tareas/${taskId}/files`);
     setTaskFiles((prev) => ({ ...prev, [taskId]: r.data || [] }));
   }
 
@@ -262,7 +278,7 @@ export default function Project() {
     for (const f of files) {
       const form = new FormData();
       form.append("file", f);
-      await api.post(`/proyectos/${id}/tareas/${taskId}/files`, form, { headers: { "Content-Type": "multipart/form-data" } });
+      await api.post(`/proyectos/${cleanProjectId}/tareas/${taskId}/files`, form, { headers: { "Content-Type": "multipart/form-data" } });
     }
     await loadFiles(taskId);
   }
@@ -276,7 +292,7 @@ export default function Project() {
   }
 
   async function deleteFile(taskId, fileId) {
-    await api.delete(`/proyectos/${id}/tareas/${taskId}/files/${fileId}`);
+    await api.delete(`/proyectos/${cleanProjectId}/tareas/${taskId}/files/${fileId}`);
     await loadFiles(taskId);
   }
 
@@ -296,7 +312,7 @@ export default function Project() {
     e.preventDefault();
     if (!editingTask) return;
     try {
-      await api.patch(`/proyectos/${id}/tareas/${editingTask}`, {
+      await api.patch(`/proyectos/${cleanProjectId}/tareas/${editingTask}`, {
         titulo: editForm.titulo,
         descripcion: editForm.descripcion,
         estado: editForm.estado,
@@ -310,12 +326,12 @@ export default function Project() {
 
   async function onDeleteTask(taskId) {
     if (!window.confirm("¿Eliminar tarea?")) return;
-    try { await api.delete(`/proyectos/${id}/tareas/${taskId}`); await loadTasks(); await loadActivity(); } catch (err) { setErrorMsg("Error al eliminar tarea."); }
+    try { await api.delete(`/proyectos/${cleanProjectId}/tareas/${taskId}`); await loadTasks(); await loadActivity(); } catch (err) { setErrorMsg("Error al eliminar tarea."); }
   }
 
   async function onDeleteProject() {
     if (!window.confirm("¿Eliminar proyecto completo?")) return;
-    try { await api.delete(`/proyectos/${id}`); window.location.href = "/"; } catch (err) { setErrorMsg("Error al eliminar proyecto."); }
+    try { await api.delete(`/proyectos/${cleanProjectId}`); window.location.href = "/"; } catch (err) { setErrorMsg("Error al eliminar proyecto."); }
   }
 
   const projectDatesBadge = useMemo(() => {
