@@ -38,10 +38,9 @@ function fmtDate(d) {
 export default function Project() {
   const { id } = useParams();
   
-  // --- CAMBIO CLAVE: Usamos encodeURIComponent. 
-  // Esto convierte "project:abc" en "project%3Aabc".
-  // El servidor aceptará la ruta y luego leerá el ID correcto.
-  const cleanId = id ? encodeURIComponent(id) : '';
+  // --- VOLVEMOS AL CLEAN ID ---
+  // Esto evitará el error 404. El error 403 (permisos) lo arreglaremos viendo el backend.
+  const cleanId = id ? id.replace('project:', '') : '';
 
   const { user, authReady } = useAuth();
   
@@ -70,7 +69,7 @@ export default function Project() {
   const [showActivity, setShowActivity] = useState(false);
 
   const loadProject = useCallback(async () => {
-    // Para el proyecto principal usamos el ID tal cual (ya vimos que funciona)
+    // ID original para el proyecto (ESTO SÍ FUNCIONA)
     const r = await api.get(`/proyectos/${id}`);
     setProject(r.data);
     setEditing({
@@ -81,17 +80,18 @@ export default function Project() {
   }, [id]);
   
   const loadMembers = useCallback(async () => {
+    // ID original para miembros (ESTO TAMBIÉN FUNCIONA)
     const r = await api.get(`/proyectos/${id}/members`);
     setMembers(Array.isArray(r.data) ? r.data : []);
   }, [id]);
 
   const loadTasks = useCallback(async () => {
     try {
-      // Usamos el ID codificado
+      // Usamos cleanId. Si da 403, es porque el backend necesita un ajuste.
       const res = await api.get(`/proyectos/${cleanId}/tareas`);
       setTasks(res.data || []);
     } catch (err) {
-      console.error("Error cargando tareas", err);
+      console.warn("No se cargaron las tareas (posible error de backend 403/404)", err);
     }
   }, [cleanId]);
 
@@ -100,7 +100,7 @@ export default function Project() {
       const res = await api.get(`/proyectos/${cleanId}/activity`);
       setActivity(res.data || []);
     } catch (err) {
-      console.error("Error cargando actividad", err);
+      console.warn("No se cargó la actividad", err);
     }
   }, [cleanId]);
 
@@ -108,7 +108,8 @@ export default function Project() {
     setLoading(true);
     setErrorMsg("");
     try {
-      // 1. Carga del Proyecto (ID normal)
+      // 1. CARGA PRINCIPAL (Proyecto y Miembros)
+      // Usamos el ID original porque sabemos que estas rutas funcionan bien con 'project:'
       const projectReq = api.get(`/proyectos/${id}`);
       const membersReq = api.get(`/proyectos/${id}/members`);
 
@@ -121,7 +122,8 @@ export default function Project() {
       const userRole = me?.rol || "viewer";
       setMyRole(userRole);
 
-      // 2. Carga de Tareas (ID Codificado)
+      // 2. CARGA SECUNDARIA (Tareas)
+      // Usamos cleanId y un try/catch para que NO rompa la página si falla
       try {
           const tasksReq = api.get(`/proyectos/${cleanId}/tareas`);
           let activityReq = null;
@@ -138,7 +140,8 @@ export default function Project() {
           if (activityRes) setActivity(activityRes.data || []);
 
       } catch (secondaryError) {
-          console.warn("No se pudieron cargar tareas (revisar URL o permisos):", secondaryError);
+          console.error("Error en tareas (Backend necesita revisión):", secondaryError);
+          // Dejamos tareas vacías pero la página sigue viva
       }
 
       setLoading(false);
@@ -265,6 +268,7 @@ export default function Project() {
     if (!titulo) return;
     try {
       setCreatingTask(true);
+      // Usamos cleanId
       await api.post(`/proyectos/${cleanId}/tareas`, {
         titulo,
         descripcion: taskForm.descripcion || '',
