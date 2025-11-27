@@ -9,7 +9,6 @@ const ESTADOS_TAREA = ['pendiente', 'en_progreso', 'bloqueada', 'terminada'];
 
 const extractTaskUUID = (taskId) => {
   const parts = taskId.split(":");
-  console.log(parts.length >= 3 ? parts[2] : taskId;)
   return parts.length >= 3 ? parts[2] : taskId; // devuelve solo el UUID puro
   
 };
