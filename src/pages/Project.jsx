@@ -7,6 +7,11 @@ import { useAuth } from '../context/AuthContext.jsx';
 const ESTADOS_PROYECTO = ['activo', 'en_progreso', 'pausado', 'cerrado'];
 const ESTADOS_TAREA = ['pendiente', 'en_progreso', 'bloqueada', 'terminada'];
 
+const extractTaskUUID = (taskId) => {
+  const parts = taskId.split(":");
+  return parts.length >= 3 ? parts[2] : taskId; // devuelve solo el UUID puro
+};
+
 // --- ESTILOS VISUALES ---
 const theme = {
   textDark: '#2c100c',    
@@ -269,15 +274,17 @@ export default function Project() {
   };
 
   async function loadFiles(taskId) {
-    const r = await api.get(`/proyectos/${id}/tareas/${taskId}/files`);
+    const realId = extractTaskUUID(taskId);
+    const r = await api.get(`/proyectos/${id}/tareas/${realId}/files`);
     setTaskFiles((prev) => ({ ...prev, [taskId]: r.data || [] }));
   }
 
   async function uploadFiles(taskId, files) {
+    const realId = extractTaskUUID(taskId);
     for (const f of files) {
       const form = new FormData();
       form.append("file", f);
-      await api.post(`/proyectos/${id}/tareas/${taskId}/files`, form, { headers: { "Content-Type": "multipart/form-data" } });
+      await api.post(`/proyectos/${id}/tareas/${realId}/files`, form);
     }
     await loadFiles(taskId);
   }
@@ -291,7 +298,8 @@ export default function Project() {
   }
 
   async function deleteFile(taskId, fileId) {
-    await api.delete(`/proyectos/${id}/tareas/${taskId}/files/${fileId}`);
+    const realId = extractTaskUUID(taskId);
+    await api.delete(`/proyectos/${id}/tareas/${realId}/files/${fileId}`);
     await loadFiles(taskId);
   }
 
