@@ -9,8 +9,9 @@ const ESTADOS_TAREA = ['pendiente', 'en_progreso', 'bloqueada', 'terminada'];
 
 const extractTaskUUID = (taskId) => {
   const parts = taskId.split(":");
+  const final = parts.length >= 3 ? parts[2] : taskId;
+  console.log("🟡 Raw TaskID:", taskId, "➡️ Usando:", final);
   return parts.length >= 3 ? parts[2] : taskId; // devuelve solo el UUID puro
-  
 };
 
 // --- ESTILOS VISUALES ---
@@ -44,6 +45,7 @@ function fmtDate(d) {
 export default function Project() {
   const { id } = useParams(); // Usamos el ID directo de la URL (incluye 'project:...')
   const { user, authReady } = useAuth();
+  console.log("🟢 Project ID recibido:", id);
   
   const [project, setProject] = useState(null);
   const [editing, setEditing] = useState({ estado: 'activo', fecha_inicio: '', fecha_fin: '' });
