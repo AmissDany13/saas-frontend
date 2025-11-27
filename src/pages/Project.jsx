@@ -36,12 +36,7 @@ function fmtDate(d) {
 }
 
 export default function Project() {
-  const { id } = useParams();
-  
-  // --- VOLVEMOS AL CLEAN ID ---
-  // Esto evitará el error 404. El error 403 (permisos) lo arreglaremos viendo el backend.
-  const cleanId = id ? id.replace('project:', '') : '';
-
+  const { id } = useParams(); // Usamos el ID directo de la URL (incluye 'project:...')
   const { user, authReady } = useAuth();
   
   const [project, setProject] = useState(null);
@@ -69,7 +64,6 @@ export default function Project() {
   const [showActivity, setShowActivity] = useState(false);
 
   const loadProject = useCallback(async () => {
-    // ID original para el proyecto (ESTO SÍ FUNCIONA)
     const r = await api.get(`/proyectos/${id}`);
     setProject(r.data);
     setEditing({
@@ -80,39 +74,35 @@ export default function Project() {
   }, [id]);
   
   const loadMembers = useCallback(async () => {
-    // ID original para miembros (ESTO TAMBIÉN FUNCIONA)
     const r = await api.get(`/proyectos/${id}/members`);
     setMembers(Array.isArray(r.data) ? r.data : []);
   }, [id]);
 
   const loadTasks = useCallback(async () => {
     try {
-      // Usamos cleanId. Si da 403, es porque el backend necesita un ajuste.
-      const res = await api.get(`/proyectos/${cleanId}/tareas`);
+      const res = await api.get(`/proyectos/${id}/tareas`);
       setTasks(res.data || []);
     } catch (err) {
-      console.warn("No se cargaron las tareas (posible error de backend 403/404)", err);
+      console.error("Error cargando tareas", err);
     }
-  }, [cleanId]);
+  }, [id]);
 
   const loadActivity = useCallback(async () => {
     try {
-      const res = await api.get(`/proyectos/${cleanId}/activity`);
+      const res = await api.get(`/proyectos/${id}/activity`);
       setActivity(res.data || []);
     } catch (err) {
-      console.warn("No se cargó la actividad", err);
+      console.error("Error cargando actividad", err);
     }
-  }, [cleanId]);
+  }, [id]);
 
   const loadAll = async () => {
     setLoading(true);
     setErrorMsg("");
     try {
-      // 1. CARGA PRINCIPAL (Proyecto y Miembros)
-      // Usamos el ID original porque sabemos que estas rutas funcionan bien con 'project:'
+      // 1. Cargamos Proyecto y Miembros (Crítico)
       const projectReq = api.get(`/proyectos/${id}`);
       const membersReq = api.get(`/proyectos/${id}/members`);
-
       const [projectRes, membersRes] = await Promise.all([projectReq, membersReq]);
 
       setProject(projectRes.data);
@@ -122,26 +112,23 @@ export default function Project() {
       const userRole = me?.rol || "viewer";
       setMyRole(userRole);
 
-      // 2. CARGA SECUNDARIA (Tareas)
-      // Usamos cleanId y un try/catch para que NO rompa la página si falla
+      // 2. Cargamos Tareas y Actividad (Secundario - en bloque try/catch para no romper la UI)
       try {
-          const tasksReq = api.get(`/proyectos/${cleanId}/tareas`);
-          let activityReq = null;
-          if (userRole !== "viewer") {
-             activityReq = api.get(`/proyectos/${cleanId}/activity`);
-          }
+        const tasksReq = api.get(`/proyectos/${id}/tareas`);
+        let activityReq = null;
+        if (userRole !== "viewer") {
+           activityReq = api.get(`/proyectos/${id}/activity`);
+        }
 
-          const [tasksRes, activityRes] = await Promise.all([
-             tasksReq, 
-             activityReq ? activityReq : Promise.resolve({ data: [] })
-          ]);
+        const [tasksRes, activityRes] = await Promise.all([
+           tasksReq, 
+           activityReq ? activityReq : Promise.resolve({ data: [] })
+        ]);
 
-          setTasks(tasksRes.data || []);
-          if (activityRes) setActivity(activityRes.data || []);
-
-      } catch (secondaryError) {
-          console.error("Error en tareas (Backend necesita revisión):", secondaryError);
-          // Dejamos tareas vacías pero la página sigue viva
+        setTasks(tasksRes.data || []);
+        if (activityRes) setActivity(activityRes.data || []);
+      } catch (secErr) {
+        console.warn("Error cargando datos secundarios (tareas/actividad)", secErr);
       }
 
       setLoading(false);
@@ -156,7 +143,7 @@ export default function Project() {
     if (!authReady) return;
     if (!user) return;
     loadAll();
-  }, [authReady, user, id, cleanId]);
+  }, [authReady, user, id]);
 
   useEffect(() => {
     if (!showActivity) return;
@@ -255,7 +242,7 @@ export default function Project() {
     const form = new FormData();
     form.append("csv", file);
     try {
-      const r = await api.post(`/proyectos/${cleanId}/tareas/import-csv`, form, { headers: { "Content-Type": "multipart/form-data" } });
+      const r = await api.post(`/proyectos/${id}/tareas/import-csv`, form, { headers: { "Content-Type": "multipart/form-data" } });
       alert(`Importadas: ${r.data.created} / ${r.data.total}\nErrores: ${r.data.errors.length}`);
       await loadTasks(); await loadActivity();
     } catch (err) { alert("Error al importar CSV"); }
@@ -268,8 +255,7 @@ export default function Project() {
     if (!titulo) return;
     try {
       setCreatingTask(true);
-      // Usamos cleanId
-      await api.post(`/proyectos/${cleanId}/tareas`, {
+      await api.post(`/proyectos/${id}/tareas`, {
         titulo,
         descripcion: taskForm.descripcion || '',
         estado: taskForm.estado,
@@ -283,7 +269,7 @@ export default function Project() {
   };
 
   async function loadFiles(taskId) {
-    const r = await api.get(`/proyectos/${cleanId}/tareas/${taskId}/files`);
+    const r = await api.get(`/proyectos/${id}/tareas/${taskId}/files`);
     setTaskFiles((prev) => ({ ...prev, [taskId]: r.data || [] }));
   }
 
@@ -291,7 +277,7 @@ export default function Project() {
     for (const f of files) {
       const form = new FormData();
       form.append("file", f);
-      await api.post(`/proyectos/${cleanId}/tareas/${taskId}/files`, form, { headers: { "Content-Type": "multipart/form-data" } });
+      await api.post(`/proyectos/${id}/tareas/${taskId}/files`, form, { headers: { "Content-Type": "multipart/form-data" } });
     }
     await loadFiles(taskId);
   }
@@ -305,7 +291,7 @@ export default function Project() {
   }
 
   async function deleteFile(taskId, fileId) {
-    await api.delete(`/proyectos/${cleanId}/tareas/${taskId}/files/${fileId}`);
+    await api.delete(`/proyectos/${id}/tareas/${taskId}/files/${fileId}`);
     await loadFiles(taskId);
   }
 
@@ -325,7 +311,7 @@ export default function Project() {
     e.preventDefault();
     if (!editingTask) return;
     try {
-      await api.patch(`/proyectos/${cleanId}/tareas/${editingTask}`, {
+      await api.patch(`/proyectos/${id}/tareas/${editingTask}`, {
         titulo: editForm.titulo,
         descripcion: editForm.descripcion,
         estado: editForm.estado,
@@ -339,7 +325,7 @@ export default function Project() {
 
   async function onDeleteTask(taskId) {
     if (!window.confirm("¿Eliminar tarea?")) return;
-    try { await api.delete(`/proyectos/${cleanId}/tareas/${taskId}`); await loadTasks(); await loadActivity(); } catch (err) { setErrorMsg("Error al eliminar tarea."); }
+    try { await api.delete(`/proyectos/${id}/tareas/${taskId}`); await loadTasks(); await loadActivity(); } catch (err) { setErrorMsg("Error al eliminar tarea."); }
   }
 
   async function onDeleteProject() {
