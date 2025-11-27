@@ -38,6 +38,9 @@ function fmtDate(d) {
 
 export default function Project() {
   const { id } = useParams();
+  // --- CORRECCIÓN: Creamos un ID limpio para las peticiones de Tareas ---
+  const cleanId = id ? id.replace('project:', '') : '';
+  
   const { user, authReady } = useAuth();
   
   const [project, setProject] = useState(null);
@@ -65,6 +68,7 @@ export default function Project() {
   const [showActivity, setShowActivity] = useState(false);
 
   const loadProject = useCallback(async () => {
+    // Usamos el ID original para el proyecto
     const r = await api.get(`/proyectos/${id}`);
     setProject(r.data);
     setEditing({
@@ -75,27 +79,30 @@ export default function Project() {
   }, [id]);
   
   const loadMembers = useCallback(async () => {
+    // Usamos el ID original para miembros (asumiendo que funciona igual que proyecto)
     const r = await api.get(`/proyectos/${id}/members`);
     setMembers(Array.isArray(r.data) ? r.data : []);
   }, [id]);
 
   const loadTasks = useCallback(async () => {
     try {
-      const res = await api.get(`/proyectos/${id}/tareas`);
+      // CORREGIDO: Usamos cleanId
+      const res = await api.get(`/proyectos/${cleanId}/tareas`);
       setTasks(res.data || []);
     } catch (err) {
       console.error("Error cargando tareas", err);
     }
-  }, [id]);
+  }, [cleanId]);
 
   const loadActivity = useCallback(async () => {
     try {
-      const res = await api.get(`/proyectos/${id}/activity`);
+      // CORREGIDO: Usamos cleanId (por precaución, ya que suele estar ligado a tareas)
+      const res = await api.get(`/proyectos/${cleanId}/activity`);
       setActivity(res.data || []);
     } catch (err) {
       console.error("Error cargando actividad", err);
     }
-  }, [id]);
+  }, [cleanId]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -103,9 +110,11 @@ export default function Project() {
     try {
       const projectReq = api.get(`/proyectos/${id}`);
       const membersReq = api.get(`/proyectos/${id}/members`);
-      const tasksReq = api.get(`/proyectos/${id}/tareas`);
+      // CORREGIDO: cleanId para tareas
+      const tasksReq = api.get(`/proyectos/${cleanId}/tareas`);
       let activityReq = null;
-      if (myRole !== "viewer") activityReq = api.get(`/proyectos/${id}/activity`);
+      // CORREGIDO: cleanId para actividad
+      if (myRole !== "viewer") activityReq = api.get(`/proyectos/${cleanId}/activity`);
 
       const [projectRes, membersRes, tasksRes, activityRes] = await Promise.all([projectReq, membersReq, tasksReq, activityReq]);
 
@@ -128,7 +137,7 @@ export default function Project() {
     if (!authReady) return;
     if (!user) return;
     loadAll();
-  }, [authReady, user, id]);
+  }, [authReady, user, id, cleanId]);
 
   useEffect(() => {
     if (!showActivity) return;
@@ -227,7 +236,8 @@ export default function Project() {
     const form = new FormData();
     form.append("csv", file);
     try {
-      const r = await api.post(`/proyectos/${id}/tareas/import-csv`, form, { headers: { "Content-Type": "multipart/form-data" } });
+      // CORREGIDO: cleanId
+      const r = await api.post(`/proyectos/${cleanId}/tareas/import-csv`, form, { headers: { "Content-Type": "multipart/form-data" } });
       alert(`Importadas: ${r.data.created} / ${r.data.total}\nErrores: ${r.data.errors.length}`);
       await loadTasks(); await loadActivity();
     } catch (err) { alert("Error al importar CSV"); }
@@ -240,7 +250,8 @@ export default function Project() {
     if (!titulo) return;
     try {
       setCreatingTask(true);
-      await api.post(`/proyectos/${id}/tareas`, {
+      // CORREGIDO: cleanId (Esto soluciona el error del video)
+      await api.post(`/proyectos/${cleanId}/tareas`, {
         titulo,
         descripcion: taskForm.descripcion || '',
         estado: taskForm.estado,
@@ -254,7 +265,8 @@ export default function Project() {
   };
 
   async function loadFiles(taskId) {
-    const r = await api.get(`/proyectos/${id}/tareas/${taskId}/files`);
+    // CORREGIDO: cleanId
+    const r = await api.get(`/proyectos/${cleanId}/tareas/${taskId}/files`);
     setTaskFiles((prev) => ({ ...prev, [taskId]: r.data || [] }));
   }
 
@@ -262,7 +274,8 @@ export default function Project() {
     for (const f of files) {
       const form = new FormData();
       form.append("file", f);
-      await api.post(`/proyectos/${id}/tareas/${taskId}/files`, form, { headers: { "Content-Type": "multipart/form-data" } });
+      // CORREGIDO: cleanId
+      await api.post(`/proyectos/${cleanId}/tareas/${taskId}/files`, form, { headers: { "Content-Type": "multipart/form-data" } });
     }
     await loadFiles(taskId);
   }
@@ -276,7 +289,8 @@ export default function Project() {
   }
 
   async function deleteFile(taskId, fileId) {
-    await api.delete(`/proyectos/${id}/tareas/${taskId}/files/${fileId}`);
+    // CORREGIDO: cleanId
+    await api.delete(`/proyectos/${cleanId}/tareas/${taskId}/files/${fileId}`);
     await loadFiles(taskId);
   }
 
@@ -296,7 +310,8 @@ export default function Project() {
     e.preventDefault();
     if (!editingTask) return;
     try {
-      await api.patch(`/proyectos/${id}/tareas/${editingTask}`, {
+      // CORREGIDO: cleanId
+      await api.patch(`/proyectos/${cleanId}/tareas/${editingTask}`, {
         titulo: editForm.titulo,
         descripcion: editForm.descripcion,
         estado: editForm.estado,
@@ -310,7 +325,8 @@ export default function Project() {
 
   async function onDeleteTask(taskId) {
     if (!window.confirm("¿Eliminar tarea?")) return;
-    try { await api.delete(`/proyectos/${id}/tareas/${taskId}`); await loadTasks(); await loadActivity(); } catch (err) { setErrorMsg("Error al eliminar tarea."); }
+    // CORREGIDO: cleanId
+    try { await api.delete(`/proyectos/${cleanId}/tareas/${taskId}`); await loadTasks(); await loadActivity(); } catch (err) { setErrorMsg("Error al eliminar tarea."); }
   }
 
   async function onDeleteProject() {
@@ -426,11 +442,11 @@ export default function Project() {
                    </div>
                    {expandedTasks[t._id] && (
                       <div style={{marginTop: 15, paddingLeft: 25, borderTop: '1px solid #f5f5f5', paddingTop: 10}}>
-                         {editingTask !== t._id ? (
-                            <><p style={{fontSize: 14, color: '#555'}}>{t.descripcion || 'Sin descripción'}</p><div style={{fontSize: 13, color: '#888', marginBottom: 10}}>Responsables: {t.responsables.map(r => getResponsibleName(r)).join(', ')}</div><div style={{marginBottom: 10}}><strong style={{fontSize: 12}}>Archivos:</strong>{canEdit && <input type="file" multiple onChange={(e) => uploadFiles(t._id, e.target.files)} style={{marginLeft: 10}} />}<ul style={{paddingLeft: 15, fontSize: 13}}>{(taskFiles[t._id] || []).map(f => (<li key={f._id}><a href={f.url} target="_blank" rel="noopener noreferrer" style={{color: theme.primary}}>{f.filename}</a>{canEdit && <button onClick={() => deleteFile(t._id, f._id)} style={{marginLeft:10, border:'none', color:'red', background:'none', cursor:'pointer'}}>x</button>}</li>))}</ul></div>{canEdit && (<div style={{display:'flex', gap: 10}}><button onClick={() => startEditTask(t)} style={{background:'#fff', border:'1px solid #ccc', padding:'5px 10px', borderRadius: 5, cursor:'pointer'}}>Editar</button><button onClick={() => onDeleteTask(t._id)} style={{background:'#fff0f0', border:'1px solid #ffcccb', color: '#d32f2f', padding:'5px 10px', borderRadius: 5, cursor:'pointer'}}>Eliminar</button></div>)}</>
-                         ) : (
-                            <form onSubmit={onEditTask} style={{display:'grid', gap: 8}}><input value={editForm.titulo} onChange={(e) => setEditForm({...editForm, titulo: e.target.value})} style={inputStyle} /><input value={editForm.descripcion} onChange={(e) => setEditForm({...editForm, descripcion: e.target.value})} style={inputStyle} /><div style={{display:'flex', gap: 5}}><button type="submit" style={btnPrimary}>Guardar</button><button type="button" onClick={() => setEditingTask(null)} style={{...btnPrimary, background: '#ccc', color: '#333'}}>Cancelar</button></div></form>
-                         )}
+                          {editingTask !== t._id ? (
+                             <><p style={{fontSize: 14, color: '#555'}}>{t.descripcion || 'Sin descripción'}</p><div style={{fontSize: 13, color: '#888', marginBottom: 10}}>Responsables: {t.responsables.map(r => getResponsibleName(r)).join(', ')}</div><div style={{marginBottom: 10}}><strong style={{fontSize: 12}}>Archivos:</strong>{canEdit && <input type="file" multiple onChange={(e) => uploadFiles(t._id, e.target.files)} style={{marginLeft: 10}} />}<ul style={{paddingLeft: 15, fontSize: 13}}>{(taskFiles[t._id] || []).map(f => (<li key={f._id}><a href={f.url} target="_blank" rel="noopener noreferrer" style={{color: theme.primary}}>{f.filename}</a>{canEdit && <button onClick={() => deleteFile(t._id, f._id)} style={{marginLeft:10, border:'none', color:'red', background:'none', cursor:'pointer'}}>x</button>}</li>))}</ul></div>{canEdit && (<div style={{display:'flex', gap: 10}}><button onClick={() => startEditTask(t)} style={{background:'#fff', border:'1px solid #ccc', padding:'5px 10px', borderRadius: 5, cursor:'pointer'}}>Editar</button><button onClick={() => onDeleteTask(t._id)} style={{background:'#fff0f0', border:'1px solid #ffcccb', color: '#d32f2f', padding:'5px 10px', borderRadius: 5, cursor:'pointer'}}>Eliminar</button></div>)}</>
+                          ) : (
+                             <form onSubmit={onEditTask} style={{display:'grid', gap: 8}}><input value={editForm.titulo} onChange={(e) => setEditForm({...editForm, titulo: e.target.value})} style={inputStyle} /><input value={editForm.descripcion} onChange={(e) => setEditForm({...editForm, descripcion: e.target.value})} style={inputStyle} /><div style={{display:'flex', gap: 5}}><button type="submit" style={btnPrimary}>Guardar</button><button type="button" onClick={() => setEditingTask(null)} style={{...btnPrimary, background: '#ccc', color: '#333'}}>Cancelar</button></div></form>
+                          )}
                       </div>
                    )}
                 </div>
