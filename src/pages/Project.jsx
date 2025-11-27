@@ -287,7 +287,9 @@ export default function Project() {
     for (const f of files) {
       const form = new FormData();
       form.append("file", f);
-      await api.post(`/proyectos/${id}/tareas/${realId}/files`, form);
+      await api.post(`/proyectos/${id}/tareas/${realId}/files`, form, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
     }
     await loadFiles(taskId);
   }
